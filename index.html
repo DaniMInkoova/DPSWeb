@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DPS — Processes: data, calculations (cell by cell) and saving</title>
+<style>
+  :root{--red:#CC0000;--ink:#1a1a1a;--gray:#5b6470;--panel:#fff;--bg:#eef0f3;--line:#e2e5ea;--chip:#f1f3f6}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,Segoe UI,Arial,sans-serif;background:var(--bg);color:var(--ink);line-height:1.5}
+  header{background:linear-gradient(120deg,#2b2f36,#3a3f47);color:#fff;padding:26px 20px 20px}
+  h1{margin:0 auto;font-size:25px;font-weight:800;max-width:1100px}
+  h1 .r{color:#ff6b6b}
+  header p{margin:6px auto 0;color:#c9ced6;font-size:14px;max-width:1100px}
+  .bar{max-width:1100px;margin:16px auto 0;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+  #q{flex:1;min-width:220px;padding:11px 14px;border:1px solid #4b515b;border-radius:10px;background:#20242a;color:#fff;font-size:15px}
+  #q::placeholder{color:#8b929c}
+  .count{color:#c9ced6;font-size:13px}
+  .toolbtn{padding:9px 12px;border:1px solid #4b515b;border-radius:9px;background:#20242a;color:#dfe3e8;font-size:13px;cursor:pointer}
+  main{max-width:1100px;margin:0 auto;padding:22px 16px 60px}
+  .phase{margin:26px 0 10px;font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--gray);border-bottom:2px solid var(--line);padding-bottom:6px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;margin:12px 0;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+  .chead{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--line);cursor:pointer;user-select:none}
+  .num{flex:none;width:34px;height:34px;border-radius:9px;background:var(--red);color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;font-size:15px}
+  .num.base{background:#455A64}
+  .ctitle{flex:1;min-width:0}.ctitle .nm{font-weight:700;font-size:17px}
+  .ctitle .sc{font-size:12.5px;color:var(--gray);font-family:ui-monospace,Consolas,monospace}
+  .tag{font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;background:#fdecec;color:#b30000;white-space:nowrap}
+  .tag.load{background:#eef1f5;color:#5b6470}
+  .caret{color:var(--gray);font-size:13px;transition:transform .15s}
+  .card.open .caret{transform:rotate(90deg)}
+  .body{display:none;padding:6px 18px 18px}.card.open .body{display:block}
+  .row{display:grid;grid-template-columns:150px 1fr;gap:10px;padding:11px 0;border-top:1px solid var(--line)}
+  .row:first-child{border-top:none}
+  .k{font-size:12.5px;font-weight:700;color:var(--gray);padding-top:2px;text-transform:uppercase;letter-spacing:.03em}
+  .k .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px}
+  .d-in{background:#1f538d}.d-ca{background:#b26a00}.d-sv{background:#1f7a33}.d-dp{background:#8a8f98}
+  .v{font-size:14px}
+  .tbl{display:inline-block;background:#eef5ee;color:#1f7a33;border:1px solid #cfe6cf;padding:1px 7px;border-radius:6px;margin:2px 4px 2px 0;font-family:ui-monospace,Consolas,monospace;font-size:12.5px}
+  .src{display:inline-block;background:#eaf1fa;color:#1f538d;border:1px solid #d3e2f5;padding:1px 7px;border-radius:6px;margin:2px 4px 2px 0;font-family:ui-monospace,Consolas,monospace;font-size:12.5px}
+  .dep{display:inline-block;background:var(--chip);color:var(--gray);border:1px solid var(--line);padding:1px 8px;border-radius:20px;margin:2px 4px 2px 0;font-size:12px}
+  .none{color:var(--gray);font-style:italic}
+  code{background:#f4f2ef;border:1px solid #eadfce;color:#7a4b00;padding:.5px 5px;border-radius:5px;font-size:12.5px}
+  .grp{margin:12px 0 4px;font-size:12px;font-weight:800;color:var(--red);letter-spacing:.04em}
+  table.cells{width:100%;border-collapse:collapse;font-size:13px;margin:2px 0 6px}
+  table.cells td{border-top:1px solid var(--line);padding:5px 8px;vertical-align:top}
+  table.cells td.c{width:150px;font-family:ui-monospace,Consolas,monospace;font-weight:700;color:#0b3d66}
+  table.cells td.f{font-family:ui-monospace,Consolas,monospace;color:#333}
+  .note{font-size:12.5px;color:var(--gray);font-style:italic;margin-top:6px}
+  footer{max-width:1100px;margin:0 auto;padding:0 16px 40px;color:var(--gray);font-size:12.5px}
+</style>
+</head>
+<body>
+<header>
+  <h1>DPS <span class="r">·</span> Processes: data, calculations (cell by cell) and saving</h1>
+  <p>Sheet per process: what we <b>insert</b> and from where, what we <b>calculate</b> — cell/column by cell with its formula — and what we <b>save</b>. DB: <code>InkoovaProjects</code>. Notation: <code>·</code> multiply, <code>Σ</code> sum, <code>IF(cond;a;b)</code> conditional, <code>←</code> source.</p>
+  <div class="bar">
+    <input id="q" placeholder="Search process, cell, table or formula… (e.g. Calc_J, qty_total, BDGT4)">
+    <button class="toolbtn" id="expand">Expand all</button>
+    <span class="count" id="count"></span>
+  </div>
+</header>
+<main id="main"></main>
+<footer id="foot"></footer>
+<script>
+const P=[
+ {n:"◆",phase:"Base (xInfun masters)",name:"Update Master Data",scripts:"DataBaseUpdate.py",tag:"load",
+  ins:"Runs 7 stored procedures that read from the ERP.",origen:["xInfun / ERP (7 SPs)"],
+  calc:"No calculation in Python: the load logic lives in the SQL Server SPs.",
+  cells:[{g:"Stored procedures",c:"sp_CargarDPS_ArticleMaster",f:"→ DPS_tbArticleMaster"},{g:"Stored procedures",c:"sp_CargarDPS_CostOfMaterials(2)",f:"→ DPS_tbCostOfMaterials / _2"},{g:"Stored procedures",c:"sp_CargarDPS_PriceOfTransport",f:"→ DPS_tbPriceOfTransport"},{g:"Stored procedures",c:"sp_CargarDPS_RawMaterial(_Relation)",f:"→ DPS_tbRawMaterial / _Relation"},{g:"Stored procedures",c:"usp_UpdateExternalWorks",f:"→ DPS_tbExternalWorks"}],
+  save:["DPS_tbArticleMaster","DPS_tbCostOfMaterials","DPS_tbCostOfMaterials2","DPS_tbPriceOfTransport","DPS_tbRawMaterial","DPS_tbRawMaterial_Relation","DPS_tbExternalWorks"],deps:[]},
+
+ {n:1,phase:"Base inputs (no dependencies)",name:"Mapping",scripts:"List.py + Copy",tag:"load",
+  ins:"Support catalogs/lists (DB→Excel).",origen:["xInfun masters","Excel template (manual)"],
+  calc:"Catalog load; the Process reads and inserts without calculation.",
+  cells:[{g:"Info (lists → named ranges)",c:"Cores / Painted Cores",f:"→ Mapping_Cores / Mapping_Painted"},{g:"Info (lists → named ranges)",c:"Iron Types (Material/Name/Acronyms) / Iron Type Desc",f:"→ Mapping_IronTypes_* / Mapping_IronType*"},{g:"Info (lists → named ranges)",c:"Plants / Families / Subfamily / Subsystem / ProductionLines",f:"→ DPS_List_* (catalogs)"},{g:"Process",c:"(inserts)",f:"reads the sheet lists and inserts; no calculation"}],
+  save:["DPS_List_Families","DPS_List_Subfamily","DPS_List_Subsystem","DPS_List_Plants","DPS_List_IronTypes","DPS_List_ProductionLines","DPS__List_Cores"],deps:[]},
+
+ {n:2,phase:"Base inputs (no dependencies)",name:"Orderbook",scripts:"Sales.py / Orderbook.py + Copy",tag:"load",
+  ins:"Budget volumes and units per article (manual input).",origen:["Excel template (manual)"],
+  calc:"Copies/validates the template; the Process inserts without calculation. 'Units Budget' (BB) is consumed by many processes.",
+  cells:[{g:"Info (manual → DB)",c:"Client / Item / Ref",f:"← template (identification)"},{g:"Info (manual → DB)",c:"Units Budget (BB)",f:"← template (budget volumes)"},{g:"Process",c:"(inserts)",f:"reads the sheet and inserts; no calculation"}],
+  save:["DPS_Sales"],deps:[]},
+
+ {n:3,phase:"Base inputs (no dependencies)",name:"Expenses by department (SDC)",scripts:"SDC.py + Copy",tag:"calculation",
+  ins:"Foundry costs per department (FOU, manual) + T3 = BM2 reconstructed from source.",origen:["Excel template (manual)","DPS_ArticleMaster / Engineering / Production / Quality / Sales (for BM2)"],
+  calc:"Info writes the manual cost ranges + calculates T3 (Moulding Line Hours) without going through DPS_DPS.",
+  cells:[{g:"Info — FOU costs (manual → cell)",c:"SDC_Ecology, SDC_Protective_Material, SDC_Customer_Charges, SDC_Components, SDC_Obsolescence, SDC_RD, SDC_Maintenance*, SDC_Energy_Fix_Part, SDC_Cleaning, SDC_Tools, SDC_Labour_Fix…",f:"← template (cost per item)"},{g:"Info — calculated from source",c:"T3  (BM2 = Moulding Line Hours)",f:"Σ BM  ;  BM = BC·V/(U·BJ) ;  BC = BB/(1−(BR+BS))"}],
+  save:["DPS_SDC_FOU","DPS_SDC_COST_DATA"],deps:[]},
+
+ {n:4,phase:"Base inputs (no dependencies)",name:"Salary",scripts:"Salary_Info.py + Salary.py",tag:"calculation",
+  ins:"Head count, rates and hours (manual) + AB2/AB3/AB4 reconstructed from source.",origen:["Excel template (manual)","DPS_Production / Coreshop / ArticleMaster (for AB2-AB4)"],
+  calc:"Info writes manual rates/headcount + calculates Salary_NetWeight (AB2:AB4) without going through DPS_DPS:",
+  cells:[{g:"Info — manual",c:"Head count, rates (MOD Line/Finish: legal_rate, ot_rate, add_hrs), hours",f:"← template"},{g:"Info — calculated from source (AB2:AB4)",c:"AB2  (DR5)",f:"Σ [Total hours Finishing]  (DPS_Production)"},{g:"Info — calculated from source (AB2:AB4)",c:"AB3  (DL Hours)",f:"Σ [DL Hours]  (DPS_Coreshop_MainTable)"},{g:"Info — calculated from source (AB2:AB4)",c:"AB4  (CJ3)",f:"Σ Total hours Casting (replica of DPS L5 from ArticleMaster/Sales/Quality/Engineering/Production)"}],
+  save:["DPS_SalaryTest_HeadCount","DPS_SalaryTest_Rates","DPS_SalaryTest_Hours","DPS_SalaryTest_…"],deps:[]},
+
+ {n:5,phase:"Base inputs (no dependencies)",name:"Budget China",scripts:"BudgetChina.py + Copy",tag:"load",
+  ins:"China budget (manual): pieces and monthly volumes.",origen:["Excel template (manual)"],
+  calc:"Direct load; the Process inserts without calculation. Consumed by Standard DPS (AG–AS).",
+  cells:[{g:"Info (manual → cell)",c:"Cust ref / Plant / LOCAL·DRAXTON Customer ID / Sales Part",f:"← template (key)"},{g:"Info (manual → cell)",c:"Pieces",f:"← budget_china_Pieces"},{g:"Info (manual → cell)",c:"Volume January … December",f:"← budget_china_Volume_* (12 months)"},{g:"Process",c:"(inserts)",f:"reads the sheet and inserts; no calculation"}],
+  save:["DPS_BudgetChina"],deps:[]},
+
+ {n:6,phase:"Base inputs (no dependencies)",name:"Budget Prices",scripts:"BudgetPrices.py + Copy",tag:"load",
+  ins:"Budget prices/volume (manual).",origen:["Excel template (manual)"],
+  calc:"Direct load; the Process inserts without calculation.",
+  cells:[{g:"Info (manual → cell)",c:"Cust ref / Plant / Customer IDs / Sales Part",f:"← template (key)"},{g:"Info (manual → cell)",c:"Volume Tons",f:"← budget_prices_Volume_Tons"},{g:"Process",c:"(inserts)",f:"reads the sheet and inserts; no calculation"}],
+  save:["DPS_BudgetPrices"],deps:[]},
+
+ {n:7,phase:"Article master + ERP loads",name:"Article Master",scripts:"Orderbook_Info.py + Orderbook.py",tag:"calculation",
+  ins:"Central article master (DB→Excel, ArticleMaster sheet).",origen:["DPS_tbArticleMaster","DPS_List_ProductionLines","DPS_List_Families"],
+  calc:"Info maps DPS_tbArticleMaster; Process calculates 4 columns + manual Cores (Y/N).",
+  cells:[{g:"Info (DB → Excel)",c:"Group / Plant",f:"← GroupDesc / SITE"},{g:"Info (DB → Excel)",c:"Client Code / Description",f:"← IDCliente / DescCliente"},{g:"Info (DB → Excel)",c:"Item (F) / Component (S) / Item Description",f:"← IDArticulo / IDComponente / DescArticulo"},{g:"Info (DB → Excel)",c:"Line ID",f:"← DescPresup (Line → DPS_List_ProductionLines)"},{g:"Info (DB → Excel)",c:"ID Family / Subfamily / Subsystem (+Desc)",f:"← IDFamilia / IDSubfamilia+SubfamiliaDesc / IDSubsistema+SubsistemDesc"},{g:"Info (DB → Excel)",c:"Delivery / Net / Gross Weight",f:"← PesoBruto / PesoNeto / Volumen"},{g:"Info (DB → Excel)",c:"Cavities / Cores by piece",f:"← Cavities / CoresByPiece"},{g:"Process (calculates)",c:"Client+Ref Code",f:"client+reference key"},{g:"Process (calculates)",c:"Family Description",f:"lookup by ID Family"},{g:"Process (calculates)",c:"Yield",f:"yield (Net/Gross)"},{g:"Process (calculates)",c:"Rel. G/N",f:"Gross Weight / Net Weight"},{g:"Manual",c:"Cores (Y/N)",f:"manual input"}],
+  save:["DPS_ArticleMaster"],deps:["Update Master Data","Mapping"]},
+
+ {n:8,phase:"Article master + ERP loads",name:"Cost of materials (Purchasing)",scripts:"CostOfMaterials_Info.py + .py",tag:"load",
+  ins:"Material costs per family (from DPS_tbCostOfMaterials2).",origen:["DPS_tbCostOfMaterials2"],
+  calc:"Info maps columns; Process inserts without calculation.",
+  cells:[{g:"Info (DB → Excel)",c:"Category / Part No / Part Desc",f:"← Category / IDComponente / DescArticulo"},{g:"Info (DB → Excel)",c:"Family / Product Family",f:"← IDFamilia / DescFamilia"},{g:"Info (DB → Excel)",c:"BDGT (price)",f:"← BDGT2025 → Costofmaterial_BDGTY0"},{g:"Process",c:"(inserts)",f:"reads the sheet and inserts; no calculation"}],
+  save:["DPS_CostofMaterials"],deps:["Update Master Data"]},
+
+ {n:9,phase:"Article master + ERP loads",name:"Scrap and alloys formula",scripts:"ScrapAlloysForm_Info.py + _MaterialData.py",tag:"load",
+  ins:"Scrap and alloy formulas.",origen:["DPS_ScrapAllows_Material","DPS_tbCostOfMaterials","Excel template (manual)"],
+  calc:"Info consolidates material/quantity; Process inserts without calculation.",
+  cells:[{g:"Info (DB → Excel)",c:"Material / Material Code / Client Code",f:"← Material / MaterialCode / ClientCode"},{g:"Info (DB → Excel)",c:"Material Desc / Quantity",f:"← MaterialDesc / Quantity"},{g:"Process",c:"(inserts)",f:"reads the sheet and inserts; no calculation"}],
+  save:["DPS_ScrapAllows_Material","DPS_ScrapAllows_MaterialClient"],deps:["Update Master Data"]},
+
+ {n:10,phase:"Article master + ERP loads",name:"Price of transport",scripts:"PriceOfTransport_Info.py + .py",tag:"load",
+  ins:"Transport prices per part (from DPS_tbPriceOfTransport).",origen:["DPS_tbPriceOfTransport"],
+  calc:"Info maps columns; Process inserts without calculation.",
+  cells:[{g:"Info (DB → Excel)",c:"Part No / Part Desc",f:"← IDArticulo / DescArticulo"},{g:"Info (DB → Excel)",c:"BDGT_Y1 (price)",f:"← BDGT_Y1"},{g:"Process",c:"(inserts)",f:"reads the sheet and inserts; no calculation"}],
+  save:["DPS_PriceOfTransport"],deps:["Update Master Data"]},
+
+ {n:11,phase:"Article master + ERP loads",name:"Raw Materials",scripts:"RawMaterials_Info.py + .py",tag:"calculation",
+  ins:"Raw material prices (from DPS_tbRawMaterial). BDGT4 = Consumption 'Price'.",origen:["DPS_tbRawMaterial"],
+  calc:"Info maps prices; Process calculates a weighted average price.",
+  cells:[{g:"Info (DB → Excel)",c:"SITE / Component / Desc",f:"← SITE / IDComponente / DescArticulo"},{g:"Info (DB → Excel)",c:"BDGT4 (Price)",f:"← BDGT4 (used by Consumption and DPS AK2/BQ2)"},{g:"Process (calculates)",c:"P  (FY5 Avg)",f:"(N_Jan_Aug · 0.66) + (O_Sept_4Q · 0.34)"}],
+  save:["DPS_RawMaterial"],deps:["Update Master Data"]},
+
+ {n:12,phase:"Data per article",name:"Quality",scripts:"Quality_Info.py + Quality.py",tag:"load",
+  ins:"Rejections per article (manual part) + identification.",origen:["DPS_ArticleMaster","DPS_tbArticleMaster"],
+  calc:"Info brings identification + rejections; Process inserts without calculation. The DPS uses Rejection ÷100 = BR/BS.",
+  cells:[{g:"Info (DB → Excel)",c:"Client+Ref / Client Code+Desc / Item (F) / Component / Item Desc",f:"← DPS_ArticleMaster"},{g:"Manual / tb",c:"Internal / External Rejection",f:"← InternalRejection / ExternalRejection"},{g:"Process",c:"(inserts)",f:"reads the sheet and inserts; no calculation"}],
+  save:["DPS_Quality"],deps:["Article Master","Update Master Data"]},
+
+ {n:13,phase:"Data per article",name:"Production",scripts:"Production_Info.py + Production.py",tag:"calculation",
+  ins:"Moulds/hour per article (from tbExternalWorks) + head counts/finishing (manual).",origen:["DPS_ArticleMaster","DPS_tbExternalWorks","Excel template (manual)"],
+  calc:"Info brings identification + Moulds Hour (rest manual); Process calculates H and I (energies):",
+  cells:[{g:"Info (DB → Excel)",c:"Client Code / Description / Item Desc / Line",f:"← DPS_ArticleMaster"},{g:"Info (DB → Excel)",c:"Moulds Hour",f:"← MouldsxHour (DPS_tbExternalWorks)"},{g:"Manual",c:"Head counts (Melting, Bricklayers, Moulding, Spectrometer, Degating…), finishing",f:"← template"},{g:"Process (calculates)",c:"H  (Moulding Line KWH)",f:"H3 · (Units Budget · Net Weight) / (1 − External/100 − Internal/100)"},{g:"Process (calculates)",c:"I  (Melting KWH)",f:"I3 · (Units Budget · Net Weight) / (1 − External/100 − Internal/100)"}],
+  save:["DPS_Production","DPS_Production_Globals"],deps:["Article Master","Update Master Data"]},
+
+ {n:14,phase:"Data per article",name:"Coreshop",scripts:"Coreshop_Info.py + Coreshop.py",tag:"calculation",
+  ins:"Core costs and consumptions per article.",origen:["DPS_ArticleMaster","DPS_tbArticleMaster","DPS_Sales"],
+  calc:"Info brings identification + cores/units; Process calculates (F..AJ):",
+  cells:[{g:"Info (DB → Excel)",c:"Client+Ref / Client Code / Item / Item Desc",f:"← DPS_ArticleMaster"},{g:"Info (DB → Excel)",c:"Cores by piece / Units Budget",f:"← Cores by piece / DPS_Sales.Units Budget"},{g:"Process (calculates)",c:"L",f:"F · G"},{g:"Process (calculates)",c:"M",f:"L / (1 − H)   (if H≠1)"},{g:"Process (calculates)",c:"P",f:"M · N"},{g:"Process (calculates)",c:"W / Z / AC",f:"M/T·V · M/X·Y · M/AA·AB  (if divisor>0)"},{g:"Process (calculates)",c:"W1 / Z1 / AC1 (row 1)",f:"ΣW/2000 · ΣZ/2000 · ΣAC/2000"},{g:"Process (calculates)",c:"AD",f:"M / ((AF27/Q27)·P)"},{g:"Process (calculates)",c:"AJ",f:"AH · AJ2"}],
+  save:["DPS_Coreshop_MainTable","DPS_Coreshop_KgConsumption","DPS_Coreshop_Consumption_Material","DPS_Coreshop_OPS","DPS_Coreshop_Totals"],deps:["Article Master","Orderbook"]},
+
+ {n:15,phase:"Data per article",name:"Packaging",scripts:"Packaging_Info.py + Packaging.py",tag:"calculation",
+  ins:"Packaging materials and costs per article (prefixes BOX, BAG, PAPER…).",origen:["DPS_ArticleMaster","DPS_tbArticleMaster","DPS_Sales","DPS_RawMaterial"],
+  calc:"Info brings identification + per type (code, cost/box); Process calculates per piece:",
+  cells:[{g:"Info (DB → Excel)",c:"Client+Ref / Client Code / Item / Item Desc",f:"← DPS_ArticleMaster (+ CustomerNo)"},{g:"Info (DB → Excel)",c:"<pref>_Material_Code / cost_of_box / cantidad_caja",f:"← per packaging type (price from DPS_RawMaterial)"},{g:"Process (calculates)",c:"qty_x_piece",f:"qty_x_box / cantidad_caja   (if units>0 and box>0)"},{g:"Process (calculates)",c:"cost_of_piece",f:"cost_of_box · qty_x_piece"},{g:"Process (calculates)",c:"<pref>_Qty_Total",f:"qty_x_piece · Units Budget"},{g:"Process (calculates)",c:"total_cost",f:"cost_of_piece · Units Budget"},{g:"Process (calculates)",c:"total_amount2 / check_diff",f:"total_cost_of_piece · Units Budget · ; check = total_amount2 − total_total_cost"}],
+  save:["DPS_Packaging"],deps:["Article Master","Orderbook","Raw Materials"]},
+
+ {n:16,phase:"Data per article",name:"Warehouse",scripts:"Warehouse_Info.py + Warehouse.py",tag:"calculation",
+  ins:"Warehouse per article (items, part codes, suppliers).",origen:["DPS_ArticleMaster","DPS_tbArticleMaster","DPS_Sales"],
+  calc:"Info brings identification + Units Budget; Process calculates costs per piece (the DPS takes 'Total/pc', EE):",
+  cells:[{g:"Info (DB → Excel)",c:"Client Code / Description / Item Desc / Line / Family",f:"← DPS_ArticleMaster"},{g:"Info (DB → Excel)",c:"Units Budget",f:"← DPS_Sales (via CustomerNo)"},{g:"Process (calculates)",c:"cost_1_m2",f:"Cost per M2 · M2"},{g:"Process (calculates)",c:"Fix cost /pc",f:"fixed cost / denom"},{g:"Process (calculates)",c:"Total /pc",f:"Fix cost/pc + variable cost/pc (cost-per-piece block)"}],
+  save:["DPS_Warehouse_Items","DPS_Warehouse_PartCodes","DPS_Warehouse_Suppliers"],deps:["Article Master","Orderbook"]},
+
+ {n:17,phase:"Data per article",name:"Engineering",scripts:"Engineering_Info.py + Engineering.py",tag:"load",
+  ins:"Plate usage, filters and feeders per article.",origen:["DPS_ArticleMaster","DPS_ScrapAllows_Material","DPS_tbRawMaterial_Relation","DPS_Coreshop_MainTable"],
+  calc:"Info brings the data; the Process 'reads all columns (no calculations) and saves'. The DPS is the one that calculates Filter_qty / Quantity_of_feeders with this data.",
+  cells:[{g:"Info (DB → Excel)",c:"GROUP / Item / Component",f:"← DPS_ArticleMaster"},{g:"Info (DB → Excel)",c:"Material (Iron Type Name)",f:"← mat.Material"},{g:"Info (DB → Excel)",c:"Filter / Filter Type / Fillters by Mould",f:"← filt.IDComponente / DescArticulo / Cantidad"},{g:"Info (DB → Excel)",c:"Feeder Code / Description / Feeders by piece",f:"← ris.IDComponente / DescArticulo / Cantidad"},{g:"Info (DB → Excel)",c:"Cores / Core Code / Weight / Moulding Cycle…",f:"← DPS_Coreshop_MainTable"},{g:"Process",c:"(inserts)",f:"reads all columns and inserts; no calculation"}],
+  save:["DPS_Engineering"],deps:["Article Master","Scrap and alloys","Coreshop"]},
+
+ {n:18,phase:"Data per article",name:"External Works",scripts:"ExternalWorks_Info.py + .py",tag:"calculation",
+  ins:"External works (machining, painting, polishing, others) per article.",origen:["DPS_ArticleMaster","DPS_Sales","DPS_Quality","DPS_ScrapAllows_Material","DPS_tbExternalWorks"],
+  calc:"Info brings identification + prices; Process calculates:",
+  cells:[{g:"Info (DB → Excel)",c:"Client+Ref / GROUP / Client Code+Desc / Item",f:"← DPS_ArticleMaster"},{g:"Info (DB → Excel)",c:"Group / CustomerNo / Destination / Material",f:"← grp.IDGroup / tb.CustomerNo / tb.Poblacion / mat.Material"},{g:"Info (DB → Excel)",c:"Pr Machining / Painting / Others / Units Budget",f:"← ew.PriceMachining / PricePainting / PriceOthers / s.[Units Budget]"},{g:"Process (calculates)",c:"Quantity + scrap",f:"Quantity / (1 − TotalRejection)"},{g:"Process (calculates)",c:"Net weight Kg / Kgs + Scrap",f:"Kg Net · Quantity  ·  (Quantity+scrap) · Kg Net"},{g:"Process (calculates)",c:"External polished (RMB/pc) / External Polished",f:"Polished(RMB/kg)·Kg Net  ·  (RMB/pc)·(Quantity+scrap)"},{g:"Process (calculates)",c:"Cost Machining / finished machining / Cost Painting",f:"Pr machining·Quantity · finished·Quantity · Painting·Quantity"},{g:"Process (calculates)",c:"TOTAL External works",f:"Cost Machining + Cost Painting"}],
+  save:["DPS_ExternalWorks"],deps:["Article Master","Orderbook","Quality","Scrap and alloys"]},
+
+ {n:19,phase:"Data per article",name:"Chemical Formula",scripts:"ChemicalFormula_Info.py + .py",tag:"calculation",
+  ins:"Chemical formulas and metal type per article.",origen:["DPS_ArticleMaster","DPS_Sales","DPS_ScrapAllows_Material"],
+  calc:"Info brings Material Type/Kg Net; Process distributes each alloy by weight:",
+  cells:[{g:"Info (DB → Excel)",c:"Description / Name / Material Type",f:"← Client/Item Description / mat.Material"},{g:"Info (DB → Excel)",c:"Kg Net / Units",f:"← Net Weight / s.[Units Budget]"},{g:"Process (calculates)",c:"C-Grafite, FeMn65, FeSi75, Tin(Sn), Copper… (per alloy)",f:"Kg Net · %_Info(alloy) / Σ(kg per type)"}],
+  save:["DPS_ChemicalFormula_Items","DPS_ChemicalFormula_MetalTypes"],deps:["Article Master","Orderbook","Scrap and alloys"]},
+
+ {n:20,phase:"Derived",name:"Transport and Logistic",scripts:"Transport_Info.py + Transport.py",tag:"calculation",
+  ins:"Transport and logistics costs per article.",origen:["DPS_ArticleMaster","DPS_Sales","DPS_Quality","DPS_PriceOfTransport"],
+  calc:"Info brings identification + price; Process calculates:",
+  cells:[{g:"Info (DB → Excel)",c:"Client+Ref / Client Code+Desc / Item / Item Desc",f:"← DPS_ArticleMaster"},{g:"Info (DB → Excel)",c:"CustomerNo / Poblacion / Units Budget / Transport price",f:"← tb.CustomerNo / tb.Poblacion / DPS_Sales / DPS_PriceOfTransport"},{g:"Process (calculates)",c:"Calc_J",f:"Units Budget · Net Weight"},{g:"Process (calculates)",c:"Calc_N / Calc_Q / Calc_T",f:"Calc_M/1000 · Calc_P/1000 · Calc_S/1000"},{g:"Process (calculates)",c:"Calc_X",f:"Units Budget / Col_W"},{g:"Process (calculates)",c:"Calc_AA / Calc_AE",f:"ext_rejection · Calc_J  ·  Calc_AD · Calc_J"}],
+  save:["DPS_Transport"],deps:["Article Master","Orderbook","Quality","Price of transport"]},
+
+ {n:21,phase:"Derived",name:"Moulding Sand",scripts:"Moulding_Info.py + Moulding.py",tag:"calculation",
+  ins:"Moulding sand consumption (from DPS_ExternalWorks + Cavities).",origen:["DPS_ArticleMaster","DPS_ExternalWorks"],
+  calc:"Info brings Kg Net/Gross + Cavities; Process calculates the sand consumptions:",
+  cells:[{g:"Info (DB → Excel)",c:"Client+Ref / Client / Destination / Piece / Kg Net / Kg Gross",f:"← DPS_ExternalWorks"},{g:"Info (DB → Excel)",c:"Cavities (K)",f:"← am.Cavitites"},{g:"Process (calculates)",c:"L  (Total_Box)",f:"H / K"},{g:"Process (calculates)",c:"P  (Total_New_Sand_Arena)",f:"(M / P1) · L"},{g:"Process (calculates)",c:"Q  (Total_M_Premez)",f:"(N / P1) · L"},{g:"Process (calculates)",c:"R  (Total_Bentonita)",f:"(O / P1) · L"},{g:"Process (calculates)",c:"S / T / U (Gross Weight)",f:"1000 / ((J·K)·P1) · M  (·N, ·O resp.)"}],
+  save:["DPS_MouldingSand"],deps:["Article Master","External Works"]},
+
+ {n:22,phase:"Derived",name:"Iron Types Ferros & Common",scripts:"IronTypesFerros_Info.py + .py",tag:"calculation",
+  ins:"Iron types (ferros & common) with price and consumptions per component (pivot).",origen:["DPS_CostofMaterials","DPS_tbCostOfMaterials","DPS_ExternalWorks","DPS_ScrapAllows_MaterialClient"],
+  calc:"Info does the quantity pivot; Process calculates sumproducts and percentages:",
+  cells:[{g:"Info (DB → Excel)",c:"Component / Description / Price kg",f:"← cm.IDComponente / MAX(DescArticulo) / BDGT2025"},{g:"Info — pivot (MAX CASE by IDArticulo)",c:"912B/N · 911B/N · 916B/N · 910B/N · 914B/N · 917B/N",f:"MAX(CASE WHEN IDArticulo=<code> THEN Cantidad)"},{g:"Process (calculates)",c:"results (B/N) per column",f:"Σ(col_a · quantities)  (sumproduct)"},{g:"Process (calculates)",c:"p_value",f:"Σ(cantidad_b · results_z)"},{g:"Process (calculates)",c:"result",f:"sumproduct · am2 / 100"},{g:"Process (calculates)",c:"percentage",f:"value / total (ak3)"}],
+  save:["DPS_IronTypesFerros_MainTable","DPS_IronTypesFerros_Calculates","DPS_IronTypesFerros_MaterialData"],deps:["Update Master Data","Cost of materials","External Works","Scrap and alloys"]},
+
+ {n:23,phase:"Consumption",name:"Consumption",scripts:"Consumption_Info.py + Consumption.py",tag:"calculation",
+  ins:"Consumptions per material group: 12-month window from xInfun + Price = BDGT4. Filters/feeders reconstructed from source (without DPS_DPS).",
+  origen:["xInfun (12m consumptions)","DPS_RawMaterial (BDGT4)","DPS_IronTypesFerros_*","DPS_MouldingSand","DPS_Coreshop_*","DPS_Packaging","DPS_ArticleMaster / Quality / Sales / Engineering"],
+  calc:"Info fills Consumo/Price/Consumption per group; Process calculates ratios, totals and summary block.",
+  cells:[
+   {g:"Info (DB → Excel)",c:"C11/D11/F11/G11",f:"xInfun 12-month consumptions (Tm net / Tm melt / Net Tn / Gross Tn)"},{g:"Info (DB → Excel)",c:"F14",f:"MAX(Material1) from DPS_Coreshop_Consumption_Material (RowNumber=7)"},{g:"Info (DB → Excel)",c:"<group>.Consumo / Price / Consumption",f:"Σ(Cons) 12m · MAX(BDGT4) per CODE · rule per group"},
+   {g:"Process — Row 13 (total)",c:"C13/D13/F13/G13",f:"row 11 + row 12"},
+   {g:"Process — per group/row",c:"Kg/Tm · Kg/Tn · Cost · Rmb/kg",f:"Consumo/C13 · Consumption/F13 ('none' Consumo/F13, energies /G13) · Consumption·Price ('none' Consumo·Price) · Cost/G13/1000"},
+   {g:"Process — Filters / Feeders (from source)",c:"Filter_qty (AQ) · Quantity_of_feeders (AU)",f:"AP·BC = (Fillters/Mould/(Cav·PlateUsage))·(Units/(1−Rejection/100))  ·  Feeders by piece · Units Budget"},{g:"Process — Filters / Feeders (from source)",c:"FILTERS / FEEDERS .Consumption",f:"Σ(Filter_qty) by [Filter]  ·  Σ(Quantity_of_feeders) by [Feeder Code]"},
+   {g:"Process — Totals table (17-40)",c:"Consumo/Consumption/Cost · Kg-Tm · Price · Kg-Tn · Rmb",f:"Σ group (aggr. 22=Σ18:21,23=22+17,32=Σ25:31,33=23+24+32,35=33+34,38=36+37) · Consumo/C13 · Cost/Consumption · Consumption/F13 · Cost/F13/1000 (energies D13/G13)"},{g:"Process — Totals table (17-40)",c:"Row 40 (TOTAL)",f:"Σ of each column 17..39"},
+   {g:"Process — Summary block (3-7)",c:"C3/D3 · C4/D4 · D5 · D6 · C7/D7 · G3-G7",f:"Σ totals(26,31,37,39) · Σ IDs+sands25+furnaces26 · D3+D4+29+28+27 · energies24 · coremaking30 · COST/F13/1000"}],
+  save:["DPS_Consumption","DPS_Consumption_Groups"],deps:["Iron Types Ferros","Raw Materials","Moulding Sand"]},
+
+ {n:24,phase:"Final consolidation",name:"DPS",scripts:"DPS_Info.py + DPS.py",tag:"calculation",
+  ins:"Consolidated sheet per article. The Info reads from ~14 tables; $AH$2/$AI$2 come from DPS_Consumption (val_G rows 3/4).",
+  origen:["DPS_ArticleMaster","DPS_Sales","DPS_Quality","DPS_Engineering","DPS_Production","DPS_Coreshop_MainTable","DPS_ChemicalFormula_Items","DPS_ScrapAllows_Material","DPS_ExternalWorks","DPS_Transport","DPS_Warehouse_Items","DPS_Packaging","DPS_RawMaterial","DPS_SDC_FOU","DPS_SalaryTest_Rates","DPS_List_IronTypes","DPS_Consumption (AH2/AI2)"],
+  calc:"The Process calculates per article, column by column, in batches L1–L9 + unlock. U..FA are inputs; the rest is calculated:",
+  cells:[
+   {g:"L1",c:"W  Cavities system",f:"U · V"},{g:"L1",c:"X  Check cavities",f:"(U = W)"},{g:"L1",c:"AE  Scrap cost",f:"IF(BB=0; 0; Q·BB·FC·$AB$2)"},{g:"L1",c:"AF  Ferros X Net",f:"IF(BB=0; 0; CostKg(AC→IronType Net)·Q·BB)"},{g:"L1",c:"AP  Filters by piece",f:"AO / W"},
+   {g:"L2",c:"BC  Units to produce (r)",f:"BB / (1 − (BR+BS))"},{g:"L2",c:"AL  Filter cost",f:"BDGT2025(AM) · AP · BC"},{g:"L2",c:"AV  Feeder cost",f:"BDGT2025(AR) · AT · BC"},{g:"L2",c:"AQ  Filter qty",f:"AP · BC"},{g:"L2",c:"AU  Quantity of feeders",f:"AT · BB"},{g:"L2",c:"AW",f:"IF(AT=0; 0; AV/AT)"},{g:"L2",c:"BA  Coreshop total cost",f:"AX + AY + AZ"},{g:"L2",c:"BD / BE / BF",f:"BC·Q · BC·R · BB·Q"},
+   {g:"L3",c:"BG · BH · BI",f:"BB·P · BG−BF · BC/U"},{g:"L3",c:"BK · BL",f:"BJ·W·R/1000 · BJ·W"},{g:"L3",c:"BM  Moulding line hours",f:"IF(U·BJ>0; BC/(U·BJ/V); 0)"},{g:"L3",c:"BN",f:"$BN$5 · BM"},
+   {g:"L4",c:"BO · BP · BQ",f:"BO5·BE · BN+BO · BP·BQ2"},{g:"L4",c:"BT · BU · BV",f:"BR+BS · BR·BD · BS·BD"},{g:"L4",c:"AG  Ferros X Gross",f:"CostKg(AD→IronType Gross) · R · BC"},{g:"L4",c:"AJ  Energy variable",f:"IF(BB=0; 0; $AJ$2·$AK$2·BE)  ($AJ$2 manual)"},{g:"L4",c:"AK",f:"AJ + BQ"},{g:"L4",c:"aggregates",f:"BF5, BN6, BE5, BD5, BU5, BP4, BO6, BR2, BV5, BS2, BO5"},
+   {g:"L5",c:"CG  Melting h/person",f:"BM · (BW+BX+BZ+CA+CB)"},{g:"L5",c:"CH",f:"BM · BY"},{g:"L5",c:"CI",f:"(BM · CC) · CI6"},{g:"L5",c:"CJ",f:"BM · (CD+CE)"},{g:"L5",c:"CK",f:"CF · BM"},{g:"L5",c:"CL  Total hours Casting",f:"CG+CH+CJ+CI+CK   (Σ CL → CJ3)"},{g:"L5",c:"CM  MOD OT",f:"CL / Σ(CL) · CM6 · CM2"},{g:"L5",c:"CN  MOD line",f:"(CL · CN6) · CN2"},
+   {g:"L6",c:"DT · DU · DX · DZ",f:"(DR·DT6)·DT2 · DR/DR5·DU6·DU2 · DW·BC · DY·BB   (DR5=Σ DR)"},
+   {g:"L7",c:"EC · EF",f:"(EA+EB)·BB · (ED+EE)·BB"},{g:"L7",c:"EI · EK",f:"1/EG · EJ·BB"},{g:"L7",c:"EL · EM",f:"IF(BB=0;0; EL2·BM/BB) · EL·BB"},{g:"L7",c:"EN · EO · EP · EQ",f:"BM · EN2 / EO2 / EP2 / EQ2"},
+   {g:"L8",c:"ES · ET · EW · EX",f:"EO+EP+EQ · ES−EQ · ES/EZ · ET/BB"},
+   {g:"L9",c:"FB",f:"EZ · FA"},
+   {g:"Unlock",c:"ER  Total cost",f:"AE+AF+AG+AH+AI+AJ+AL+AV+AX+AY+AZ+BQ+CM+CN+DT+DU+DX+EC+EF+EK+EM+EN+DZ"},{g:"Unlock",c:"EU · EV · EY",f:"ER+ES · ER/EZ · EU/EZ"},{g:"Unlock",c:"FE · FF · FG",f:"FB−ER · FB−ER−ET · FB−EU"},{g:"Unlock",c:"FH · FI · FJ",f:"FA−EV · FA−EV−EX · FA−EY"},{g:"Unlock",c:"FK · FL · FM (margins)",f:"FH/FA · FI/FA · FJ/FA"},{g:"Unlock",c:"FO · FP",f:"FA/Q · EY/Q"},
+   {g:"AH / AI",c:"AH2 / AI2",f:"← DPS_Consumption.val_G (cons_row 3 / 4). Columns AH/AI: read from the sheet (temporary)"}],
+  save:["DPS_DPS (~171 col/article)","DPS_DPS_Globals (~108 col)"],deps:["Almost all previous","Consumption"]},
+
+ {n:25,phase:"Post-DPS",name:"Standard DPS",scripts:"Standard_DPS_Info.py + Standard_DPS.py",tag:"calculation",
+  ins:"'Standard' version of the cost per article (DB→Excel from DPS_DPS + Budget China).",origen:["DPS_DPS","DPS_BudgetChina"],
+  calc:"Info copies A–P from the DPS, calculates Q–AD (negated and /Units_Budget, error→0), AU=Sales_Price_Unit, AG–AS from Budget China. Process calculates AE, sales and monthly blocks.",
+  cells:[
+   {g:"Info — copy",c:"A–P / AU (Price)",f:"← DPS_DPS (GROUP…Family, weights, Yield, P=Units_Budget) · AU=Sales_Price_Unit"},
+   {g:"Info — costs (negated, /Units_Budget, error→0)",c:"Q · R · S",f:"−SCRAP_COST · −(FERROS_X_NET+GROSS) · −(COMMON_X_NET+GROSS+Filter_Cost+Feeder_Cost)"},{g:"Info — costs (negated, /Units_Budget, error→0)",c:"T · U",f:"−Coreshop_Material_Cost · −(MOD_line+Cost_Finishing_Hours+Coreshop_DL)"},{g:"Info — costs (negated, /Units_Budget, error→0)",c:"V · W · X · Y",f:"−finished_machining · −External_Work · −External_Deburring · −TOTAL_ENERGIES"},{g:"Info — costs (negated, /Units_Budget, error→0)",c:"Z · AA · AB · AC · AD",f:"−(Customer_Charges+Other_direct) · −(Transport+Packing) · −Other_Indirect · −Fixed_Cost · −Amortization"},
+   {g:"Info — Budget China",c:"AG · AH–AS (Units_1…12)",f:"← Pieces · Volume January…December (match Customer ID + Sales Part)"},
+   {g:"Process (calculates)",c:"AE",f:"Σ(Q..AD)"},{g:"Process (calculates)",c:"AV–BH (sales, sales_1..12)",f:"Price(AU) · Units(AG..AS)"},{g:"Process (calculates)",c:"monthly blocks _1..12",f:"Units_month · cost of its category"},{g:"Process (calculates)",c:"DN / EB",f:"AG · U   ·   AG · V"},{g:"Process (calculates)",c:"Row 6 (totals)",f:"Σ of each column (rows 8:600)"}],
+  save:["DPS_Standard_DPS","DPS_Standard_DPS_Globals"],deps:["DPS","Budget China"]},
+
+ {n:26,phase:"Post-DPS",name:"P&L",scripts:"PL_Info.py + PL.py",tag:"calculation",
+  ins:"Profit & loss statement from the DPS globals and the SDC costs.",origen:["DPS_DPS_Globals","DPS_SDC_COST_DATA"],
+  calc:"Info writes 47 D cells (negated except D82); Process calculates C/E/G/I per line + 8 subtotals.",
+  cells:[
+   {g:"Info — column D (DB → cell, negated)",c:"D90…D129 (YTD)",f:"−value from DPS_DPS_Globals (Sales, Scrap, Ferroalloys, Filter, Feeder, Direct Labour, Energy, Transport/Packaging…)"},{g:"Info — column D (DB → cell, negated)",c:"D159…D165 / D196…D217",f:"−roll-ups Other direct / Fix expenses (from DPS_SDC_COST_DATA)"},{g:"Info — column D (DB → cell, negated)",c:"D82  Sales Tons Nodular",f:"+ Σ Total_kgs_Net_Prod / 1000  (POSITIVE — tons)"},
+   {g:"Process — per line",c:"C · E · G · I",f:"VLOOKUP(B→P; no match = empty) · (C or 0)+D · E/$I$72/1000 · G+H (H manual, ≤132)"},
+   {g:"Process — rows 76/82",c:"D76 · C76/C82 · E",f:"D82+910 · VLOOKUP(B→P) · C+D"},
+   {g:"Process — subtotals (D/E)",c:"89 · 94 · 110 · 118 · 130 · 132 · 158 · 195",f:"Σ90:93 · Σ95:109 · 89+94 · Σ110:117 · Σ118:129 · 130−129 · Σ159:165 · Σ196:217"},{g:"Process — subtotals (D/E)",c:"G (of the 8)",f:"E / I72 / 1000"}],
+  save:["DPS_PL (long format, 56 records)"],deps:["DPS","Expenses by department (SDC)"]},
+];
+const main=document.getElementById('main'),foot=document.getElementById('foot');
+const chips=(a,cl)=>a.map(x=>`<span class="${cl}">${x}</span>`).join('');
+const depChips=a=>a.length?a.map(x=>`<span class="dep">${x}</span>`).join(''):'<span class="none">— no dependencies</span>';
+function cellsHtml(cells){
+  if(!cells||!cells.length) return '<div class="note">No detail.</div>';
+  let out='',g=null;
+  cells.forEach(x=>{ if(x.g!==g){ if(g!==null) out+='</table>'; g=x.g; out+=`<div class="grp">${g}</div><table class="cells">`; }
+    out+=`<tr><td class="c">${x.c}</td><td class="f">${x.f}</td></tr>`; });
+  return out+'</table>';
+}
+function render(list){
+  main.innerHTML='';let phase=null;
+  list.forEach(p=>{
+    if(p.phase!==phase){phase=p.phase;const h=document.createElement('div');h.className='phase';h.textContent=phase;main.appendChild(h);}
+    const c=document.createElement('div');c.className='card';
+    c.innerHTML=`
+      <div class="chead">
+        <div class="num ${p.n==='◆'?'base':''}">${p.n}</div>
+        <div class="ctitle"><div class="nm">${p.name}</div><div class="sc">${p.scripts}</div></div>
+        <span class="tag ${p.tag==='calculation'?'':'load'}">${p.tag}</span>
+        <div class="caret">▶</div>
+      </div>
+      <div class="body">
+        <div class="row"><div class="k"><span class="dot d-in"></span>We insert / source</div><div class="v"><div style="margin-bottom:6px">${p.ins}</div>${chips(p.origen,'src')}</div></div>
+        <div class="row"><div class="k"><span class="dot d-ca"></span>We calculate<br>(cell by cell)</div><div class="v"><div style="margin-bottom:4px">${p.calc}</div>${cellsHtml(p.cells)}</div></div>
+        <div class="row"><div class="k"><span class="dot d-sv"></span>We save</div><div class="v">${chips(p.save,'tbl')}</div></div>
+        <div class="row"><div class="k"><span class="dot d-dp"></span>Depends on</div><div class="v">${depChips(p.deps)}</div></div>
+      </div>`;
+    c.querySelector('.chead').addEventListener('click',()=>c.classList.toggle('open'));
+    main.appendChild(c);
+  });
+  document.getElementById('count').textContent=`${list.length} processes`;
+}
+function filter(){
+  const q=document.getElementById('q').value.toLowerCase().trim();
+  if(!q){render(P);return;}
+  render(P.filter(p=>JSON.stringify(p).toLowerCase().includes(q)));
+  main.querySelectorAll('.card').forEach(c=>c.classList.add('open'));
+}
+document.getElementById('q').addEventListener('input',filter);
+let ex=false;document.getElementById('expand').addEventListener('click',()=>{ex=!ex;
+  document.querySelectorAll('.card').forEach(c=>c.classList.toggle('open',ex));
+  document.getElementById('expand').textContent=ex?'Collapse all':'Expand all';});
+render(P);
+foot.innerHTML='The <b>26 processes</b> (+ Update Master Data), cell/column by cell with its formula (Info: source ← column; Process: calculation). Extracted from the code of each Info/Process + <code>Procesos_Origen_Datos.xlsx</code>. '+
+  'Tag <b>calculation</b> = applies formulas; <b>load</b> = only maps and inserts. Notation: <code>·</code> multiply, <code>Σ</code> sum, <code>IF(cond;a;b)</code> conditional, <code>←</code> source.';
+</script>
+</body>
+</html>
